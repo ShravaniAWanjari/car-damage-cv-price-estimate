@@ -1,0 +1,4 @@
+-r requirements.txt
+# training + evaluation (GPU node)
+rfdetr[train]==1.11.2
+pycocotools

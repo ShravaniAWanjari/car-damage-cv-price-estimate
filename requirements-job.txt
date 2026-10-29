@@ -1,0 +1,11 @@
+# Fine-tune Job image (Linux + NVIDIA GPU). Versions = the set that was run end to end on CPU (rfdetr 1.11.2,
+# torch 2.14.1). The CUDA build of torch is chosen at image build time (TORCH_INDEX_URL); see deploy/README.md.
+# Deliberately NO ultralytics here: RF-DETR does not need it and its code/weights are AGPL-3.0.
+rfdetr[train]==1.11.2
+torch==2.14.1
+torchvision==0.29.1
+pycocotools==2.0.11
+safetensors
+opencv-python-headless
+pydantic>=2
+pyyaml

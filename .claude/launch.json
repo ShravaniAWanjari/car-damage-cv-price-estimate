@@ -1,0 +1,38 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "demo-site",
+      "runtimeExecutable": ".venv311/bin/python",
+      "runtimeArgs": [
+        "-m",
+        "uvicorn",
+        "cardamage.api:app",
+        "--port",
+        "8000"
+      ],
+      "port": 8000,
+      "env": {
+        "CARDAMAGE_MODE": "demo",
+        "CARDAMAGE_DEVICE": "cpu"
+      }
+    },
+    {
+      "name": "demo-site-v2",
+      "runtimeExecutable": ".venv311/bin/python",
+      "runtimeArgs": [
+        "-m",
+        "uvicorn",
+        "cardamage.api:app",
+        "--port",
+        "8001"
+      ],
+      "port": 8001,
+      "env": {
+        "CARDAMAGE_MODE": "demo",
+        "CARDAMAGE_DEVICE": "cpu",
+        "CARDAMAGE_DAMAGE_MODEL": "rfdetr_seg_s_v2"
+      }
+    }
+  ]
+}

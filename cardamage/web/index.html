@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Car Damage Demo</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1b1f24; --muted: #667085; --line: #e3e6ea;
+    --accent: #2457d6; --warn-bg: #fff4e5; --warn-text: #8a4b00; --code: #f1f3f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1215; --panel: #171b20; --text: #e8eaed; --muted: #98a2b3; --line: #2a3038;
+      --accent: #7aa2ff; --warn-bg: #2b2111; --warn-text: #f2c27a; --code: #1d2228;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1215; --panel: #171b20; --text: #e8eaed; --muted: #98a2b3; --line: #2a3038;
+    --accent: #7aa2ff; --warn-bg: #2b2111; --warn-text: #f2c27a; --code: #1d2228;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+  header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; justify-content: space-between; }
+  h1 { font-size: 22px; margin: 0; }
+  .meta { color: var(--muted); font-size: 13px; }
+  .meta code { background: var(--code); padding: 1px 6px; border-radius: 4px; }
+  .warn { background: var(--warn-bg); color: var(--warn-text); padding: 10px 14px; border-radius: 8px; margin: 14px 0; font-size: 13px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-top: 16px; }
+  .drop { border: 2px dashed var(--line); border-radius: 10px; padding: 28px 16px; text-align: center; color: var(--muted); cursor: pointer; }
+  .drop.over { border-color: var(--accent); color: var(--text); }
+  .drop button { margin-top: 8px; }
+  button { font: inherit; padding: 7px 14px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel); color: var(--text); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .5; cursor: default; }
+  .samples { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 8px; }
+  .samples img { height: 72px; border-radius: 6px; cursor: pointer; border: 2px solid transparent; flex: none; }
+  .samples img:hover { border-color: var(--accent); }
+  .status { color: var(--muted); margin-top: 10px; min-height: 20px; }
+  .err { color: #d92d20; }
+  .result h3 { margin: 0 0 8px; font-size: 16px; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .result h3 small { color: var(--muted); font-weight: 400; }
+  .grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+  canvas, .srv { width: 100%; height: auto; border-radius: 8px; display: block; background: #000; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); cursor: pointer; font-size: 13px; user-select: none; }
+  .chip.off { opacity: .4; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .ctl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+  .ctl input[type=range] { flex: 1; min-width: 120px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 10px; }
+  th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; }
+  tr.hl td { background: var(--code); }
+  details { margin-top: 10px; }
+  pre { background: var(--code); padding: 10px; border-radius: 8px; max-height: 280px; overflow: auto; font-size: 12px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .empty { color: var(--muted); padding: 8px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Car damage analysis</h1>
+    <div class="meta" id="meta">loading model info…</div>
+  </header>
+  <div id="warn"></div>
+
+  <div class="card">
+    <div class="drop" id="drop">
+      Drop accident photos here (up to <span id="maxf">12</span>), or
+      <div><button class="primary" id="pick">Choose images</button></div>
+      <input type="file" id="file" accept="image/*" multiple hidden>
+    </div>
+    <div class="meta" style="margin-top:12px">Or try a sample photo:</div>
+    <div class="samples" id="samples"></div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div id="results"></div>
+</div>
+
+<script>
+// RGB per damage type; mirrors cardamage/render.py
+const COLORS = {
+  dent: [255,140,0], scratch: [255,220,0], crack: [80,80,255], glass_shatter: [0,200,255],
+  lamp_broken: [255,60,60], tire_flat: [200,60,200], broken_part: [255,60,60], missing_part: [200,0,120],
+  paint_chip: [120,255,120], flaking: [160,200,80], paint_damage: [255,200,0], corrosion: [170,90,30], other: [180,180,180],
+};
+const rgb = (t, a = 1) => `rgba(${(COLORS[t] || COLORS.other).join(",")},${a})`;
+const $ = (id) => document.getElementById(id);
+const el = (tag, props = {}, ...kids) => {
+  const e = Object.assign(document.createElement(tag), props);
+  kids.forEach((k) => e.append(k));
+  return e;
+};
+
+let maxFiles = 12;
+
+async function loadInfo() {
+  try {
+    const info = await (await fetch("/api/info")).json();
+    maxFiles = info.max_files; $("maxf").textContent = maxFiles;
+    const m = $("meta");
+    m.textContent = "";
+    m.append("model ", el("code", { textContent: info.damage_model.name }),
+             ` · ${info.damage_model.task} · ${info.device} · schema v${info.schema_version} · mode ${info.mode}`);
+    if (!info.licence.production_ok) {
+      $("warn").append(el("div", { className: "warn",
+        textContent: "Demo weights are not cleared for production use (licence: " +
+          (info.licence.name || info.licence.license || "see models.yaml") + "). Do not ship them." }));
+    }
+  } catch (e) { $("meta").textContent = "could not load model info"; }
+}
+
+async function loadSamples() {
+  try {
+    const { samples } = await (await fetch("/api/samples")).json();
+    const box = $("samples");
+    samples.forEach((u) => {
+      const img = el("img", { src: u, loading: "lazy", title: u.split("/").pop() });
+      img.onclick = async () => {
+        const blob = await (await fetch(u)).blob();
+        run([new File([blob], u.split("/").pop(), { type: blob.type })]);
+      };
+      box.append(img);
+    });
+    if (!samples.length) box.textContent = "(no samples folder)";
+  } catch (e) { /* optional */ }
+}
+
+function setStatus(msg, err) { const s = $("status"); s.textContent = msg; s.className = "status" + (err ? " err" : ""); }
+
+async function run(files) {
+  files = [...files].filter((f) => f.type.startsWith("image/"));
+  if (!files.length) return setStatus("No image files selected.", true);
+  if (files.length > maxFiles) files = files.slice(0, maxFiles);
+  const fd = new FormData();
+  files.forEach((f) => fd.append("files", f, f.name));
+  setStatus(`Analysing ${files.length} image(s)… (CPU inference can take a few seconds each)`);
+  $("results").textContent = "";
+  const t0 = performance.now();
+  let body;
+  try {
+    const r = await fetch("/analyze", { method: "POST", body: fd });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
+    body = await r.json();
+  } catch (e) { return setStatus("Failed: " + e.message, true); }
+  setStatus(`Done in ${((performance.now() - t0) / 1000).toFixed(1)} s · ${body.images.reduce((n, i) => n + i.damages.length, 0)} damage region(s)`);
+  body.images.forEach((res, k) => $("results").append(renderResult(res, files[k], body.demo?.annotated?.[k], body)));
+}
+
+function renderResult(res, file, serverUrl, full) {
+  const url = URL.createObjectURL(file);
+  const types = [...new Set(res.damages.map((d) => d.type))];
+  const on = new Set(types);
+  let minConf = 0;
+
+  const canvas = el("canvas");
+  const srvImg = el("img", { className: "srv", src: serverUrl || "", hidden: true, alt: "server-rendered annotation" });
+  const img = new Image();
+  const draw = () => {
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+    const w = canvas.width, h = canvas.height, lw = Math.max(2, Math.max(w, h) / 400);
+    res.damages.forEach((d, i) => {
+      if (!on.has(d.type) || d.confidence < minConf) return;
+      ctx.lineWidth = lw; ctx.strokeStyle = rgb(d.type); ctx.fillStyle = rgb(d.type, .38);
+      if (d.polygon) {
+        ctx.beginPath();
+        d.polygon.forEach(([x, y], j) => (j ? ctx.lineTo(x * w, y * h) : ctx.moveTo(x * w, y * h)));
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+      } else {
+        const [x1, y1, x2, y2] = d.bbox; ctx.strokeRect(x1 * w, y1 * h, (x2 - x1) * w, (y2 - y1) * h);
+      }
+      const [x1, y1] = d.bbox;
+      const label = `${d.type} ${d.confidence.toFixed(2)}`;
+      ctx.font = `${Math.max(12, w / 55)}px system-ui`;
+      const tw = ctx.measureText(label).width, th = Math.max(14, w / 45);
+      const ty = Math.max(th, y1 * h);
+      ctx.fillStyle = rgb(d.type); ctx.fillRect(x1 * w, ty - th, tw + 8, th + 2);
+      ctx.fillStyle = "#000"; ctx.fillText(label, x1 * w + 4, ty - 3);
+    });
+  };
+  img.onload = () => { canvas.width = img.naturalWidth; canvas.height = img.naturalHeight; draw(); };
+  img.src = url;
+
+  // type filter chips
+  const chips = el("div", { className: "chips" });
+  types.forEach((t) => {
+    const n = res.damages.filter((d) => d.type === t).length;
+    const c = el("span", { className: "chip" }, el("span", { className: "dot", style: `background:${rgb(t)}` }), `${t} · ${n}`);
+    c.onclick = () => { on.has(t) ? on.delete(t) : on.add(t); c.classList.toggle("off", !on.has(t)); draw(); fillTable(); };
+    chips.append(c);
+  });
+
+  // confidence slider (client-side view filter only; the JSON is unchanged)
+  const val = el("span", { textContent: "0.00" });
+  const slider = el("input", { type: "range", min: 0, max: 1, step: 0.01, value: 0 });
+  slider.oninput = () => { minConf = +slider.value; val.textContent = minConf.toFixed(2); draw(); fillTable(); };
+
+  const tbody = el("tbody");
+  const fillTable = () => {
+    tbody.textContent = "";
+    const rows = res.damages.filter((d) => on.has(d.type) && d.confidence >= minConf);
+    if (!rows.length) tbody.append(el("tr", {}, el("td", { colSpan: 4, className: "empty", textContent: "no damage regions shown" })));
+    rows.forEach((d) => tbody.append(el("tr", {},
+      el("td", { textContent: d.type }), el("td", { textContent: d.confidence.toFixed(2) }),
+      el("td", { textContent: (d.area_ratio_image * 100).toFixed(2) + "%" }), el("td", { textContent: d.panel || "-" }))));
+  };
+  fillTable();
+
+  const json = JSON.stringify(res, null, 1);
+  const copy = el("button", { textContent: "Copy JSON" });
+  copy.onclick = () => navigator.clipboard.writeText(json).then(() => { copy.textContent = "Copied"; setTimeout(() => (copy.textContent = "Copy JSON"), 1200); });
+  const dl = el("button", { textContent: "Download JSON" });
+  dl.onclick = () => { const a = el("a", { href: URL.createObjectURL(new Blob([json], { type: "application/json" })), download: res.image_id + ".json" }); a.click(); };
+  const toggle = el("button", { textContent: "Show server-rendered image" });
+  toggle.disabled = !serverUrl;
+  toggle.onclick = () => {
+    const showSrv = srvImg.hidden; srvImg.hidden = !showSrv; canvas.hidden = showSrv;
+    toggle.textContent = showSrv ? "Show browser overlay" : "Show server-rendered image";
+  };
+
+  return el("div", { className: "card result" },
+    el("h3", {}, el("span", { textContent: res.image_id }), el("small", { textContent: `${res.width}×${res.height} · ${res.inference_ms.toFixed(0)} ms/img · ${res.damages.length} region(s)` })),
+    el("div", { className: "grid" },
+      el("div", {}, canvas, srvImg),
+      el("div", {}, chips,
+        el("div", { className: "ctl" }, "min confidence", slider, val),
+        el("table", {}, el("thead", {}, el("tr", {}, ...["type", "conf", "area", "panel"].map((h) => el("th", { textContent: h })))), tbody),
+        el("div", { className: "row" }, toggle, copy, dl))),
+    el("details", {}, el("summary", { textContent: "JEV input for this image (JSON)" }), el("pre", { textContent: json })));
+}
+
+const drop = $("drop"), file = $("file");
+$("pick").onclick = (e) => { e.stopPropagation(); file.click(); };
+drop.onclick = () => file.click();
+file.onchange = () => file.files.length && run(file.files);
+["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", (e) => run(e.dataTransfer.files));
+
+loadInfo(); loadSamples();
+</script>
+</body>
+</html>

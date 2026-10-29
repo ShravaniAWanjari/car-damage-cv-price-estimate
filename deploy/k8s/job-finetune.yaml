@@ -1,0 +1,67 @@
+# One fine-tune run of RF-DETR-Seg. Because of generateName, create (not apply) it:
+#   kubectl create -f deploy/k8s/job-finetune.yaml
+#   kubectl -n car-damage logs -f job/<generated-name>
+# Edit the env block for size / epochs / batch. Safe to re-create after eviction: the entrypoint resumes from
+# runs/<name>/last.ckpt in the output volume and skips training once models/<name>/meta.json exists.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: finetune-rfdetr-
+  namespace: car-damage
+  labels: {app: cardamage, component: finetune}
+spec:
+  backoffLimit: 1                       # one automatic retry (resumes from the last epoch checkpoint)
+  activeDeadlineSeconds: 172800         # hard stop after 48 h
+  ttlSecondsAfterFinished: 604800       # keep the finished Job (and its logs) for 7 days
+  template:
+    metadata:
+      labels: {app: cardamage, component: finetune}
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001                  # makes the output volume writable by the trainer user
+        seccompProfile: {type: RuntimeDefault}
+      # Cluster-specific scheduling - uncomment/adapt to how your GPU nodes are labelled and tainted:
+      # nodeSelector: {nvidia.com/gpu.product: NVIDIA-A100-SXM4-40GB}
+      # tolerations: [{key: nvidia.com/gpu, operator: Exists, effect: NoSchedule}]
+      # imagePullSecrets: [{name: registry-credentials}]
+      containers:
+        - name: finetune
+          image: REGISTRY/cardamage-train:TAG        # <- the image built from deploy/train.Dockerfile
+          imagePullPolicy: IfNotPresent
+          env:
+            - {name: SIZE, value: "medium"}          # nano | small | medium | large
+            - {name: MODEL_NAME, value: "rfdetr_seg_m"}
+            - {name: EPOCHS, value: "60"}
+            - {name: BATCH_SIZE, value: "4"}         # 4 x 4 for a 16 GB card; 16 x 1 for a 40/80 GB A100
+            - {name: GRAD_ACCUM, value: "4"}
+            - {name: LR, value: "1e-4"}
+            - {name: NUM_WORKERS, value: "4"}
+            - {name: DEVICE, value: "cuda"}
+            - {name: EARLY_STOPPING, value: "0"}
+            # - {name: RESOLUTION, value: "504"}     # optional override (must suit the model's patch size)
+            - {name: DATASET_DIR, value: "/data"}
+            - {name: OUTPUT_DIR, value: "/output"}
+          resources:                                  # starting points - tune after the first run
+            requests: {cpu: "6", memory: 24Gi, nvidia.com/gpu: 1}
+            limits: {memory: 32Gi, nvidia.com/gpu: 1}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          volumeMounts:
+            - {name: dataset, mountPath: /data, readOnly: true}
+            - {name: output, mountPath: /output}
+            - {name: dshm, mountPath: /dev/shm}      # DataLoader workers need real shared memory
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: dataset
+          persistentVolumeClaim: {claimName: cardamage-dataset, readOnly: true}
+        - name: output
+          persistentVolumeClaim: {claimName: cardamage-train-output}
+        - name: dshm
+          emptyDir: {medium: Memory, sizeLimit: 8Gi}
+        - name: tmp
+          emptyDir: {sizeLimit: 10Gi}

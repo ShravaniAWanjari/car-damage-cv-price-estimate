@@ -1,0 +1,15 @@
+# Insurance-style damage taxonomy v2, derived from the 8 Humans-in-the-Loop classes.
+# Rationale and evidence: docs/ANNOTATION_GUIDELINES.md (label audit: scratch/paint_chip/flaking are 5-10 px at a
+# 384 px input and cannot be told apart, and assessors scope them as one refinish area anyway).
+name: insurance_v2
+classes:                         # new class -> source classes
+  dent: [dent]
+  paint_damage: [scratch, paint_chip, flaking]
+  corrosion: [corrosion]         # kept apart: usually pre-existing / wear, relevant to the coverage decision
+  crack: [crack]
+  broken_part: [broken_part]
+  missing_part: [missing_part]
+region_merge:                    # close same-class marks are unioned into ONE region (fraction of the image's long side)
+  paint_damage: 0.03
+  corrosion: 0.03
+min_region_area_pct: 0.03        # drop regions smaller than this % of the image

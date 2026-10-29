@@ -1,0 +1,16 @@
+# Serving / demo. Python >= 3.10.
+ultralytics==8.4.190   # only needed for the community YOLO baselines (AGPL-3.0)
+rfdetr==1.11.2         # production backend (Apache-2.0)
+torch
+torchvision
+safetensors
+opencv-python-headless
+numpy
+pydantic>=2
+pyyaml
+fastapi
+uvicorn
+python-multipart
+httpx
+pytest
+picklescan

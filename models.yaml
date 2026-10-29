@@ -1,0 +1,151 @@
+# Model registry. Each entry points at a directory produced by
+# scripts/safe_convert.py (model.safetensors + meta.json).
+#
+# `taxonomy` maps the model's own labels onto the stable damage types in
+# cardamage/schema.py, so JEV never sees a model-specific label.
+# `license` records what we know about weights AND training data -- read
+# docs/MODEL_SELECTION.md before any of these go near production.
+
+defaults:
+  damage_model: abdullahg7_v8s_seg
+  parts_model: null          # off by default: no open parts model was reliable enough (see docs)
+
+models:
+  # ---- Production track: RF-DETR-Seg (Apache-2.0), fine-tuned by us -------------------------
+  # `dir` appears after: python scripts/finetune_rfdetr.py --dataset-dir <data> --size medium
+  # production_ok stays false until the training data in PROVENANCE.md is cleared by legal.
+  rfdetr_seg_m:
+    dir: models/rfdetr_seg_m
+    backend: rfdetr
+    role: damage
+    conf: 0.30
+    taxonomy: {}                # fine-tuned labels already use schema names
+    class_conf: {}              # paste the block printed by scripts/eval_model.py
+    license:
+      weights: Apache-2.0 (RF-DETR) fine-tuned by us
+      data: our own claim photos - see <dataset>/PROVENANCE.md
+      production_ok: false
+
+  # DEV-SAMPLE model: RF-DETR-Seg-nano, 6 epochs on CPU on the CC0 hitl_damage_v1 set (see data/hitl_damage_v1/PROVENANCE.md).
+  # Exists to prove the train->eval->serve path; NOT an accuracy candidate.
+  rfdetr_seg_n:
+    dir: models/rfdetr_seg_n
+    backend: rfdetr
+    role: damage
+    conf: 0.30
+    taxonomy: {}
+    class_conf: {}
+    license:
+      weights: Apache-2.0 (RF-DETR) fine-tuned on a CC0 sample set
+      data: Humans in the Loop CC0 sample; photo origin undisclosed (see PROVENANCE.md)
+      production_ok: false
+
+  # DEV-SAMPLE model: RF-DETR-Seg-small on the CC0 sample set (stronger run than rfdetr_seg_n; still not client data).
+  rfdetr_seg_s:
+    dir: models/rfdetr_seg_s
+    backend: rfdetr
+    role: damage
+    conf: 0.30
+    taxonomy: {}
+    # F1-optimal thresholds calibrated on the VALID split (not test). Only the classes with enough valid instances
+    # to trust (n>=60) and a threshold above the base conf are set; others stay at conf 0.30.
+    class_conf: {broken_part: 0.32, missing_part: 0.35}
+    license:
+      weights: Apache-2.0 (RF-DETR) fine-tuned on a CC0 sample set
+      data: Humans in the Loop CC0 sample; photo origin undisclosed (see PROVENANCE.md)
+      production_ok: false
+
+  # v2 taxonomy (dent, paint_damage, corrosion, crack, broken_part, missing_part), RF-DETR-Seg-small, CC0 sample set.
+  rfdetr_seg_s_v2:
+    dir: models/rfdetr_seg_s_v2
+    backend: rfdetr
+    role: damage
+    conf: 0.30
+    taxonomy: {}
+    class_conf: {}              # calibrate on valid with scripts/eval_model.py, then paste
+    license:
+      weights: Apache-2.0 (RF-DETR) fine-tuned on a CC0 sample set
+      data: Humans in the Loop CC0 sample (derived v2 taxonomy); photo origin undisclosed (see PROVENANCE.md)
+      production_ok: false
+
+  rfdetr_seg_l:
+    dir: models/rfdetr_seg_l
+    backend: rfdetr
+    role: damage
+    conf: 0.30
+    taxonomy: {}
+    class_conf: {}
+    license:
+      weights: Apache-2.0 (RF-DETR) fine-tuned by us
+      data: our own claim photos - see <dataset>/PROVENANCE.md
+      production_ok: false
+
+  # ---- Community baselines (demo / comparison only) ----------------------------------------
+  abdullahg7_v8s_seg:
+    dir: models/abdullahg7_v8s_seg
+    role: damage
+    source: https://huggingface.co/abdullahg7/cardd-yolov8s
+    conf: 0.25
+    taxonomy: {dent: dent, scratch: scratch, crack: crack, glass_shatter: glass_shatter,
+               lamp_broken: lamp_broken, tire_flat: tire_flat}
+    license:
+      weights: AGPL-3.0 (Ultralytics YOLOv8)
+      data: CarDD - research use only; commercial/"testing commercial systems" needs PIC Lab approval
+      production_ok: false
+
+  harpreet_yolo11_seg:
+    dir: models/harpreet_yolo11_seg
+    role: damage
+    source: https://huggingface.co/harpreetsahota/car-dd-segmentation-yolov11
+    conf: 0.25
+    taxonomy: {crack: crack, dent: dent, "glass shatter": glass_shatter,
+               "lamp broken": lamp_broken, scratch: scratch, "tire flat": tire_flat}
+    license: {weights: AGPL-3.0 (Ultralytics YOLO11), data: CarDD (research only), production_ok: false}
+
+  michelgi_yolo12m_seg:
+    dir: models/michelgi_yolo12m_seg
+    role: damage
+    source: https://huggingface.co/michelgi/cardd-rfdetr-large
+    conf: 0.25
+    taxonomy: {Dent: dent, Scratch: scratch, Crack: crack, Broken: broken_part,
+               Paint_chip: other, Wreck: other}
+    license: {weights: AGPL-3.0 (Ultralytics YOLO12) - no model card, data: unknown/CarDD+VEDD, production_ok: false}
+
+  shanexf_yolo11m:
+    dir: models/shanexf_yolo11m
+    role: damage
+    source: https://huggingface.co/shanexf/car-damage-yolo11m-ft
+    conf: 0.25
+    taxonomy: {dent: dent, scratch: scratch, crack: crack, shattered_glass: glass_shatter,
+               broken_lamp: lamp_broken, flat_tire: tire_flat}
+    license: {weights: AGPL-3.0 (Ultralytics YOLO11), data: unknown, production_ok: false}
+
+  vineet_yolo11n:
+    dir: models/vineet_yolo11n
+    role: damage
+    source: https://huggingface.co/vineetsarpal/yolov11n-car-damage
+    conf: 0.35
+    # panel-aware classes: label already carries the body panel
+    taxonomy:
+      Front-windscreen-damage: glass_shatter
+      Rear-windscreen-Damage: glass_shatter
+      Headlight-damage: lamp_broken
+      Taillight-Damage: lamp_broken
+      Sidemirror-Damage: broken_part
+      Runningboard-Damage: broken_part
+      bonnet-dent: dent
+      boot-dent: dent
+      doorouter-dent: dent
+      fender-dent: dent
+      front-bumper-dent: dent
+      quaterpanel-dent: dent
+      rear-bumper-dent: dent
+      roof-dent: dent
+    license: {weights: "AGPL-3.0 (card says Apache-2.0, but Ultralytics-derived)", data: Roboflow Universe dataset (check licence), production_ok: false}
+
+  aitools_parts:
+    dir: models/aitools_parts
+    role: parts
+    source: https://huggingface.co/AItoolstack/car_damage_detection
+    conf: 0.4
+    license: {weights: AGPL-3.0 (Ultralytics YOLOv8) - no model card, data: unknown, production_ok: false}

@@ -1,0 +1,13 @@
+.venv*/
+.git/
+data/
+models/
+outputs/
+samples/
+tests/
+docs/
+**/__pycache__/
+*.pt
+*.pth
+*.ckpt
+*.safetensors

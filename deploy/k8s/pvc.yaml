@@ -1,0 +1,25 @@
+# Two volumes: the labelled dataset (written once, then mounted read-only) and the job output
+# (checkpoints for resume, exported model, eval report). Fill in storageClassName for your cluster.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cardamage-dataset
+  namespace: car-damage            # change to your namespace (and in the other manifests)
+spec:
+  accessModes: ["ReadWriteOnce"]
+  # storageClassName: <your-class>
+  resources:
+    requests:
+      storage: 50Gi                # images x ~1.2 plus headroom; 814 sample photos were ~0.5 GB
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cardamage-train-output
+  namespace: car-damage
+spec:
+  accessModes: ["ReadWriteOnce"]
+  # storageClassName: <your-class>
+  resources:
+    requests:
+      storage: 30Gi                # last.ckpt alone is ~0.5 GB (nano) and larger for M/L; plus exported model
